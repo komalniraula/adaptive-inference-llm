@@ -2,17 +2,13 @@ import time
 from tqdm import tqdm
 import numpy as np
 
-from rouge_score import rouge_scorer
-from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
-from evaluate import load as hf_load_metric
+from rouge_score import rouge_scorer # metrics
+from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction # metrics
+from evaluate import load as hf_load_metric # metrics
 
-# For QA
 import numpy as np
 
-# -----------------------------
-# UTILITY METRICS
-# -----------------------------
-
+# utility functions for metrics
 def compute_classification_accuracy(preds, labels):
     return np.mean(np.array(preds) == np.array(labels))
 
@@ -61,9 +57,7 @@ def compute_token_f1(preds, refs):
 
 
 
-# ---------------------------------------------------------
-#                EVALUATOR CLASS
-# ---------------------------------------------------------
+# EVALUATOR CLASS
 
 class EarlyExitEvaluator:
     """
@@ -80,15 +74,13 @@ class EarlyExitEvaluator:
     def __init__(self, tokenizer):
         self.tokenizer = tokenizer
 
-    # =====================================================
     # Main evaluation method
-    # =====================================================
     def evaluate(self, model, strategy, dataset, task_type, max_samples=None):
         """
-        model      → GPT2WithEarlyExit or T5WithEarlyExit
-        strategy   → ConfidenceExitStrategy / ContinuousConfidenceExit
+        model      → GPT2WithEarlyExit (from models folder in the repo. Can create other model wrappers similarly)
+        strategy   → ConfidenceExitStrategy & ContinuousConfidenceExit (from strategies folder in the repo. Can create other strategies similarly)
         dataset    → preprocessed dataset object
-        task_type  → ["classification", "summarization", "translation", "qa"]
+        task_type  → ["classification", "summarization", "translation", "qa"] # type of task (based on dataset)
         max_samples→ optional subset (overrides loader’s fraction)
 
         Returns dict with:
@@ -100,16 +92,14 @@ class EarlyExitEvaluator:
         latencies = []
         layers_used_list = []
 
-        # If user wants absolute number of samples
+        # Absolute number of samples
         if max_samples:
             dataset = dataset.select(range(min(max_samples, len(dataset))))
 
         for example in tqdm(dataset, desc="Evaluating"):
             strategy.reset()
 
-            # ----------------------------------
             # Prepare input text
-            # ----------------------------------
             if task_type == "classification":
                 inp = example["text"]
                 reference = example["label"]
@@ -125,9 +115,7 @@ class EarlyExitEvaluator:
             else:
                 raise ValueError("Invalid task type")
 
-            # ----------------------------------
             # Run model with early exit
-            # ----------------------------------
             t0 = time.time()
             pred_text, layers_used = model.generate_with_early_exit(inp)
             latency = time.time() - t0
@@ -137,9 +125,7 @@ class EarlyExitEvaluator:
             latencies.append(latency)
             layers_used_list.append(layers_used)
 
-        # =====================================================
         # Compute metrics
-        # =====================================================
         if task_type == "classification":
             metric_name = "accuracy"
             score = compute_classification_accuracy(predictions, references)
@@ -159,9 +145,7 @@ class EarlyExitEvaluator:
         else:
             raise ValueError("Invalid task type")
 
-        # =====================================================
         # Efficiency metrics
-        # =====================================================
         avg_latency = np.mean(latencies)
         throughput = len(dataset) / sum(latencies)
         avg_layers = np.mean(layers_used_list)

@@ -15,44 +15,72 @@ class GPT2WithEarlyExit(torch.nn.Module):
 
         # VERBALIZERS
         self.verbalizers = {
-            "sst2": {0: "negative", 1: "positive"},
-            "agnews": {0: "world", 1: "sports", 2: "business", 3: "tech"}
+            "sst2": {
+                0: ["negative"],
+                1: ["positive"],
+            },
+            "agnews": {
+                0: ["international", "world", "global"],
+                1: ["sports", "sport"],
+                2: ["business", "finance", "market"],
+                3: ["technology", "tech", "computer"],
+            }
         }
 
         # Precompute token IDs
         self.verbalizer_token_ids = {}
-        for dataset, vocab in self.verbalizers.items():
+        for dataset, class_map in self.verbalizers.items():
             ids = {}
-            for cls, word in vocab.items():
-                ids[cls] = self.tokenizer.encode(" " + word)[0]
+            for cls, words in class_map.items():
+                tok_lists = []
+                for w in words:
+                    tok_lists.append(self.tokenizer.encode(" " + w))
+                ids[cls] = tok_lists    # list of token lists
             self.verbalizer_token_ids[dataset] = ids
 
     # CLASSIFICATION EARLY EXIT (no KV needed)
     @torch.no_grad()
     def classify_with_early_exit(self, text, dataset_name):
-
+    
         self.strategy.reset()
-        token_ids = self.verbalizer_token_ids[dataset_name]
-
+        class_verbalizers = self.verbalizer_token_ids[dataset_name]
+    
+        # Encode text
         inputs = self.tokenizer(text, return_tensors="pt")
         hidden_states = self.model.transformer.wte(inputs["input_ids"])
-
+    
         for layer_idx, block in enumerate(self.model.transformer.h):
-
+    
             outputs = block(hidden_states, use_cache=False)
             hidden_states = outputs[0]
-
-            logits = self.model.lm_head(hidden_states[:, -1, :])
-            probs = torch.softmax(logits, dim=-1)[0]
-            class_probs = {cls: probs[tok].item() for cls, tok in token_ids.items()}
-
-            pred_class = max(class_probs, key=class_probs.get)
-            confidence = class_probs[pred_class]
-
+    
+            logits = self.model.lm_head(hidden_states[:, -1, :])[0]  # shape [vocab]
+    
+            class_scores = []
+    
+            # FOR EACH CLASS
+            for cls, verbalizer_toklists in class_verbalizers.items():
+    
+                v_scores = []
+                
+                # FOR EACH VERBALIZER WORD IN THE CLASS
+                for tok_list in verbalizer_toklists:
+                    v_scores.append(logits[tok_list].mean().item())
+    
+                # take best verbalizer word for that class
+                class_scores.append(max(v_scores))
+    
+            class_scores = torch.tensor(class_scores)
+            class_probs = torch.softmax(class_scores, dim=-1)
+    
+            pred_class = torch.argmax(class_probs).item()
+            confidence = class_probs[pred_class].item()
+    
             if self.strategy.should_exit(confidence, layer_idx):
                 return pred_class, layer_idx + 1
-
+    
         return pred_class, self.num_layers
+
 
     # GENERATION — EARLY EXIT (supports KV or no-KV paths)
     @torch.no_grad()

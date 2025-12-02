@@ -105,6 +105,12 @@ class EarlyExitEvaluator:
                 reference = example["label"]
             elif task_type == "summarization":
                 inp = example["article"]
+                # truncate (GPT2 only takes 1024)
+                tokens = self.tokenizer.encode(inp)
+                if len(tokens) > 1000:
+                    tokens = tokens[:1000]
+                inp = self.tokenizer.decode(tokens)
+
                 reference = example["summary"]
             elif task_type == "translation":
                 inp = example["src"]

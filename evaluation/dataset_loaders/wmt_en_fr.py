@@ -2,7 +2,7 @@ from datasets import load_dataset
 import random
 
 def load_wmt_enfr(fraction=1.0, number=None, task="test", seed=42):
-    ds = load_dataset("wmt14", "en-fr")
+    ds = load_dataset("wmt14", "fr-en")
 
     if task == "train":
         data = ds["train"]

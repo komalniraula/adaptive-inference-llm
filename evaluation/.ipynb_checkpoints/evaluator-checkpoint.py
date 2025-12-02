@@ -75,7 +75,7 @@ class EarlyExitEvaluator:
         self.tokenizer = tokenizer
 
     # Main evaluation method
-    def evaluate(self, model, strategy, dataset, task_type, max_samples=None):
+    def evaluate(self, model, strategy, dataset, task_type, dataset_name=None, max_samples=None):
         """
         model      → GPT2WithEarlyExit (from models folder in the repo. Can create other model wrappers similarly)
         strategy   → ConfidenceExitStrategy & ContinuousConfidenceExit (from strategies folder in the repo. Can create other strategies similarly)
@@ -117,10 +117,17 @@ class EarlyExitEvaluator:
 
             # Run model with early exit
             t0 = time.time()
-            pred_text, layers_used = model.generate_with_early_exit(inp)
-            latency = time.time() - t0
 
-            predictions.append(pred_text)
+            if task_type == "classification":
+                pred_label, layers_used = model.classify_with_early_exit(inp, dataset_name)
+                pred_output = pred_label
+            else:
+                pred_text, layers_used = model.generate_with_early_exit(inp)
+                pred_output = pred_text
+        
+            latency = time.time() - t0
+            
+            predictions.append(pred_output)
             references.append(reference)
             latencies.append(latency)
             layers_used_list.append(layers_used)

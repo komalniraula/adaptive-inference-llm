@@ -4,15 +4,17 @@ import random
 def load_sst2(fraction=1.0, number=None, task='test', seed=42):
     ds = load_dataset("glue", "sst2")
 
-    if task == 'train':
-        data = ds['train']
+    if task == "train":
+        data = ds["train"]
+    elif task == "test":
+        data = ds["validation"]     # GLUE SST2 has no labeled test set
     else:
-        data = ds["validation"]  # SST2 validation is standard for evaluation
+        raise ValueError("task must be 'train' or 'test'")
 
-    if not number:
+    if number is None:
         n = int(len(data) * fraction)
     else:
-        n = number
+        n = min(number, len(data))
         
     random.seed(seed)
     sampled = data.select(random.sample(range(len(data)), n))

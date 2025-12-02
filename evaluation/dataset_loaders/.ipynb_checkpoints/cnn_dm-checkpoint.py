@@ -5,9 +5,9 @@ def load_cnndm(fraction=1.0, number=None, task='test', seed=42):
     ds = load_dataset("cnn_dailymail", "3.0.0")
     
     if task == "train":
-        data = ds["train"]
+        data = ds["train"] + ds["validation"] # combined train and val both as train set
     elif task == "test":
-        data = ds["validation"]
+        data = ds["test"]
     else:
         raise ValueError("task must be 'train' or 'test'")
 

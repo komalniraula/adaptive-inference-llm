@@ -22,6 +22,7 @@ class GPT2WithEarlyExit(torch.nn.Module):
         self.num_layers = len(self.model.transformer.h)
         self.use_kv = use_kv
         self.max_new_tokens = max_new_tokens
+        self.model_device = next(self.model.parameters()).device
 
         # VERBALIZERS (multi-word per class)
         self.verbalizers = {
@@ -59,7 +60,7 @@ class GPT2WithEarlyExit(torch.nn.Module):
         Safe positional embedding: clamps positions >= 1024
         to the last index. This avoids IndexError for long sequences.
         """
-        input_ids = input_ids.to(self.device)
+        input_ids = input_ids.to(self.model_device)
         seq_len = input_ids.size(1)
     
         max_pos = self.model.config.n_positions  # usually 1024
